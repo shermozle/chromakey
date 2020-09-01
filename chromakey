@@ -1,0 +1,34 @@
+#!/usr/bin/python3
+
+import os
+import argparse
+from PIL import Image
+
+parser = argparse.ArgumentParser(description='Chromakey camera input over an image')
+parser.add_argument('-i', '--input', help='Input v4l2 device', default='/dev/video1')
+parser.add_argument('-o', '--output', help='Output v4l2 device', default='/dev/video2')
+parser.add_argument('image', help='Background image location')
+parser.add_argument('-a', '--angle', help='Size of the colorcube for alpha, default: 30', default=30)
+parser.add_argument('-n', '--noise', help='Noise radius, default: 18', default=18)
+parser.add_argument('-b', '--black', help='Sensitivity to black, default: 90', default=90)
+parser.add_argument('-w', '--white', help='Sensitivity to white, default: 80', default=80)
+parser.add_argument('-c', '--colour', help='RGB values for chromakey, default: 115,128,82', default='115,128,82')
+
+args = parser.parse_args()
+
+temp_image_location = '/tmp/background_image.jpg'
+
+from resizeimage import resizeimage
+with open(args.image, 'r+b') as f:
+    with Image.open(f) as image:
+      cover = resizeimage.resize_cover(image, [640, 480])
+      cover.save(temp_image_location, image.format)
+
+colours = args.colour.split(',')
+
+# Working command
+# gst-launch-1.0 filesrc location=/home/simon/backgrounds/blossom-480p.jpg ! decodebin ! imagefreeze ! videomixer name=mix ! videoconvert ! videorate ! 'video/x-raw, format=YUY2, framerate=30/1' ! v4l2sink device=/dev/video2 sync=false v4l2src device=/dev/video1 ! alpha method=custom target-r=115 target-g=128 target-b=82 angle=30 noise-level=18 black-sensitivity=90 white-sensitivity=80 ! mix.
+
+myCmd = 'gst-launch-1.0 filesrc location=' + temp_image_location + ' ! decodebin ! imagefreeze ! videomixer name=mix ! videoconvert ! videorate ! \'video/x-raw, format=YUY2, framerate=30/1\' ! v4l2sink device=' + args.output + ' sync=false v4l2src device=' + args.input + ' ! alpha method=custom target-r=' + colours[0] + ' target-g=' + colours[1] + ' target-b=' + colours[2] + ' angle=' + str(args.angle) + ' noise-level=' + str(args.noise) + ' black-sensitivity=' + str(args.black) + ' white-sensitivity=' + str(args.white) + ' ! mix.'''
+
+os.system(myCmd)
